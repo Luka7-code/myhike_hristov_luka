@@ -4,6 +4,10 @@ import { onAuthReady } from "/src/authentication.js";
 import { db } from "./firebaseConfig.js";
 import { doc, onSnapshot } from "firebase/firestore";
 import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+
+let currentUser = null;
+let favourites = [];
 
 function showName() {
   // Pass a CALLBACK function to run when Firebase finishes checking login status
@@ -131,6 +135,8 @@ async function displayCardsDynamically() {
       // Add the link with the document ID
       newcard.querySelector(".read-more").href = `eachHike.html?docID=${doc.id}`;
 
+      setupHeart(newcard, doc.id);
+
       // Attach the new card to the container
       document.getElementById("hikes-go-here").appendChild(newcard);
     });
@@ -139,5 +145,35 @@ async function displayCardsDynamically() {
   }
 }
 
-// Call the function to display cards when the page loads
-displayCardsDynamically();
+function setupHeart(card, hikeID) {
+  const heart = card.querySelector(".fav-btn");
+  if (favourites.includes(hikeID)) {
+    heart.classList.replace("bi-heart", "bi-heart-fill");
+  }
+
+  heart.addEventListener("click", () => {
+    toggleFavourite(heart, hikeID);
+  });
+}
+
+async function toggleFavourite(heart, hikeID) {
+  const userRef = doc(db, "users", currentUser.uid);
+  if (heart.classList.contains("bi-heart-fill")) {
+    await setDoc(userRef, { favourites: arrayRemove(hikeID) }, { merge: true });
+    heart.classList.replace("bi-heart-fill", "bi-heart");
+  } else {
+    await setDoc(userRef, { favourites: arrayUnion(hikeID) }, { merge: true });
+    heart.classList.replace("bi-heart", "bi-heart-fill");
+  }
+}
+
+onAuthReady(async function (user) {
+  if (!user) {
+    location.href = "index.html";
+  } else {
+    currentUser = user;
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    favourites = userDoc.data()?.favourites || [];
+    displayCardsDynamically();
+  }
+});
